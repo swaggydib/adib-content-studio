@@ -1,0 +1,10 @@
+'use client';
+import {useEffect,useSyncExternalStore} from 'react';
+import {Sun,Moon,Monitor} from 'lucide-react';
+import {APPEARANCE_KEY,parseAppearance,resolveAppearance,type Appearance} from '@/lib/appearance';
+let sessionPreference:Appearance|undefined;
+function preference():Appearance{if(sessionPreference)return sessionPreference;try{return parseAppearance(window.localStorage.getItem(APPEARANCE_KEY));}catch{return 'system';}}
+function apply(value:Appearance){const theme=resolveAppearance(value,window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=theme;document.documentElement.dataset.appearance=value;document.documentElement.style.colorScheme=theme;}
+function subscribe(notify:()=>void){const media=window.matchMedia('(prefers-color-scheme: dark)');const change=()=>{apply(preference());notify();};const storage=(e:StorageEvent)=>{if(e.key===APPEARANCE_KEY){sessionPreference=undefined;change();}};window.addEventListener('studio-appearance',change);window.addEventListener('storage',storage);media.addEventListener('change',change);return()=>{window.removeEventListener('studio-appearance',change);window.removeEventListener('storage',storage);media.removeEventListener('change',change);};}
+function choose(value:Appearance){sessionPreference=value;try{localStorage.setItem(APPEARANCE_KEY,value);}catch{/* Private storage can be unavailable; retain selection for this page. */}apply(value);window.dispatchEvent(new Event('studio-appearance'));}
+export default function AppearanceControl(){const current=useSyncExternalStore(subscribe,preference,()=>'system' as Appearance);useEffect(()=>{apply(preference());},[]);const Icon=current==='dark'?Moon:current==='light'?Sun:Monitor;return <label className="appearance-control"><Icon size={15} aria-hidden="true"/><span className="sr-only">Tema tampilan</span><select aria-label="Tema tampilan" value={current} onChange={e=>choose(parseAppearance(e.target.value))}><option value="light">Terang</option><option value="dark">Gelap</option><option value="system">Sistem</option></select></label>;}

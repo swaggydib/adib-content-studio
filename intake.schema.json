@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:adib-content-studio:intake:1",
+  "title": "Content Studio draft intake v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "items"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "items": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["externalId", "title", "platform", "format", "body", "source", "owner", "account", "media", "audience", "plannedAt"],
+        "properties": {
+          "externalId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$" },
+          "ideaId": { "type": "string", "maxLength": 128, "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9_.:-]*$" },
+          "title": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "\\S" },
+          "platform": { "enum": ["linkedin", "instagram", "tiktok"] },
+          "format": { "enum": ["text", "video"] },
+          "body": { "type": "string", "maxLength": 100000 },
+          "source": { "type": "string", "maxLength": 100000 },
+          "owner": { "enum": ["Adib", "Hermes"] },
+          "account": { "type": "string", "maxLength": 2048 },
+          "media": { "type": "string", "maxLength": 10000 },
+          "audience": { "type": "string", "maxLength": 1000 },
+          "plannedAt": { "type": "string", "maxLength": 64, "anyOf": [{ "const": "" }, { "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,3})?)?(?:Z|[+-]\\d{2}:\\d{2})$" }] }
+        }
+      }
+    }
+  }
+}

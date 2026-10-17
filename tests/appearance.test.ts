@@ -1,0 +1,3 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {parseAppearance,resolveAppearance} from '../lib/appearance.ts';
+test('appearance accepts only light dark system, rejects malformed local settings',()=>{assert.equal(parseAppearance('dark'),'dark');assert.equal(parseAppearance('light'),'light');assert.equal(parseAppearance(null),'system');assert.equal(parseAppearance('unexpected'),'system');assert.equal(parseAppearance('SYSTEM'),'system');});
+test('explicit appearance wins and system follows OS preference',()=>{assert.equal(resolveAppearance('dark',false),'dark');assert.equal(resolveAppearance('light',true),'light');assert.equal(resolveAppearance('system',true),'dark');assert.equal(resolveAppearance('system',false),'light');});
