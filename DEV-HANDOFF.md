@@ -1,5 +1,9 @@
 # DEV-HANDOFF — Adib Content Studio
 
+## Current update: published-only Obsidian and reject/delete
+
+See PUBLICATION-HANDOFF.md. Manual owner-confirmed publication URL/time/version gates Obsidian export; draft export is disabled. Rejection now deletes unpublished draft data and completed worker payloads, preserving tiny dedup IDs. Existing notes and legacy data are not bulk-deleted. Prior UI/followup sections below are historical where superseded.
+
 ## Latest verified delivery — UI and local data
 
 **Current handoff: UI-HANDOFF.md.** The new build now runs at **http://127.0.0.1:3002** and was separately browser-verified there using the preserved real DB. Dark/light/system appearance, database view and keyboard quick find are implemented. SQLite remains active by the user's local-first choice; Supabase is deferred. **28 backend/unit tests and 7 current UI Chrome tests pass; lint/typecheck/build pass; full npm audit 0 vulnerabilities.** All 7 original complete item documents are unchanged, including LI-01 v7 Ready to Publish. Backup, preservation hashes, screenshots, current process handle, run commands and remaining integration limits are documented in UI-HANDOFF.md. The old port-3002 blocker below is resolved; subsequent sections are historical evidence, not the current runtime inventory.

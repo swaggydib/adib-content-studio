@@ -96,6 +96,7 @@ export class RevisionWorker {
     this.db.exec('BEGIN IMMEDIATE');
     let job: Job;
     try {
+      const locked=this.studio.get(itemId);if(locked.version!==version)throw new StudioError('Version conflict; reload content',409);
       const pending=this.listJobs().filter(j=>['queued','running'].includes(j.status));
       const same=pending.find(j=>j.itemId===itemId&&j.version===version&&(j.kind??'revision')===kind&&j.instruction===instruction);if(same){this.db.exec('COMMIT');return same;}
       if (pending.length >= this.limit) throw new StudioError('Revision queue full; wait for an existing job', 429);

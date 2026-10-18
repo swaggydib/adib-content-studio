@@ -32,11 +32,11 @@ Keep the terminal open. Stop a server you started there with **Ctrl+C**. If the 
 - Content board and sortable database table with platform/status/search filters, versions, next owner, and local-plan properties.
 - Focused caption/script editor with source evidence, account, media references, and audience.
 - Version-bound stage approvals and immutable activity history. Relevant edits invalidate prior approval.
-- Reject/reopen flow; rejected ideas remain archived, not deleted.
+- Reject-and-delete flow: after confirmation, unpublished draft content/history and completed local worker inputs/results are removed; tiny IDs prevent re-import. Previously rejected legacy records are not bulk-deleted.
 - Date/time pickers and month calendar in **Asia/Shanghai (UTC+08)**. Local plans are not platform schedules.
 - Hermes review feedback and revision proposals; explicit **Apply** creates an unapproved version.
 - Validated schema-v1 draft intake, provenance, duplicate skipping, and malformed-pack quarantine.
-- Explicit Obsidian snapshots to new files, not silent overwrites or bidirectional editing.
+- Manual publication confirmation with URL/time/frozen version. Only confirmed publications enter Obsidian, with idempotent export and explicit retry; drafts never export.
 - Light/dark/system appearance, remembered board/table view, and **Ctrl/Cmd+K** quick find.
 - Responsive navigation, editor, calendar, connections, and dialogs.
 
@@ -76,7 +76,7 @@ Stop the owned app server before rebuilding its shared `.next` directory. Do not
 | Draft inbox | Versioned validation, provenance, persistent receipts, non-overwriting deduplication |
 | Existing bot routines | Intake instructions previously wired without schedule changes; first natural scheduled emission still unobserved |
 | Hermes review/revision | Real bounded execution verified in the earlier acceptance pass; never auto-applied |
-| Obsidian | Explicit unique snapshots and deduplicated snapshot sync |
+| Obsidian | Confirmed-publication snapshots only; legacy draft export returns 403; retry sync never exports drafts |
 | LinkedIn | Existing bot-side read-only access; not dashboard publishing auth |
 | Instagram/TikTok private analytics | Not connected; no fabricated metrics |
 | Supabase | Deferred; not connected |
@@ -108,7 +108,15 @@ Worker boundaries: fixed argv, no shell interpolation, concurrency **1**, queue 
 - Local writes require validated Host/Origin pairing and JSON. SQL is parameterized; content renders as text.
 - Do not commit provider credentials or attach a working database to an issue.
 
-The UI checkpoint preserved all **7 original complete item documents** byte-for-byte, including versions, approvals, history, and rejected items. Personal data and preservation artifacts remain local.
+The earlier UI checkpoint preserved all **7 original complete item documents** byte-for-byte, including versions, approvals, history, and rejected items. Personal data and preservation artifacts remain local.
+
+## Published-only update
+
+Only after you manually post: approve/save the exact final version, click **Tandai sudah dipublikasikan**, enter the real post URL and publication time, and confirm matching text. Verification is **owner-confirmed**, not API-verified. Failed Obsidian export does not lose the publication record; retry from the publication panel. Later draft edits never change the frozen published snapshot.
+
+**Tolak & hapus draft** requires confirmation and permanently removes the active unpublished draft, versions/history and completed local task data. It blocks pending/running Hermes tasks and items with publication records. Small ID tombstones prevent re-import. This is not secure erasure: old backups, source inbox files and provider-side histories are not deleted; SQLite pages are reused and file size need not shrink immediately. Existing legacy rejected records and old vault notes are not automatically cleaned up.
+
+Latest verification and exact boundaries: [PUBLICATION-HANDOFF.md](PUBLICATION-HANDOFF.md). Previous UI evidence below is historical. There is no automatic GitHub push for this local update.
 
 ## Verification
 

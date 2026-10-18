@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, mkdirSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, symlinkSync } from 'node:fs';
 
 import { join } from 'node:path';
 import { Studio } from '../lib/studio.ts';
@@ -73,13 +73,7 @@ test('intake validates whole batch atomically and rejects malformed fields', () 
     assert.throws(() => f.studio.get('../escape')); assert.throws(() => f.studio.get('not-found'));
   } finally { f.clean(); }
 });
-test('exports use fixed safe root, unique files, and retain both versions', () => {
-  const f = fixture(); try { const a = f.studio.create({ ...base, title: '../../outside' }); const one = f.studio.exportItem(a.id); const two = f.studio.exportItem(a.id);
-    assert.notEqual(one.path, two.path); assert.ok(one.path.startsWith(f.exports)); assert.equal(readdirSync(f.exports).length, 2); assert.match(readFileSync(one.path, 'utf8'), /Draft body/);
-    assert.throws(() => f.studio.exportItem('../bad'));
-    assert.throws(() => new Studio(join(f.root, 'other.sqlite'), `${f.root}/../escape`));
-  } finally { f.clean(); }
-});
+test('legacy draft export is refused and unsafe roots stay rejected',()=>{const f=fixture();try{const a=f.studio.create(base);assert.throws(()=>f.studio.exportItem(a.id),/publikasi/i);assert.throws(()=>f.studio.exportItem('../bad'));assert.throws(()=>new Studio(join(f.root,'other.sqlite'),`${f.root}/../escape`));}finally{f.clean();}});
 test('export rejects a symlink ancestor', () => {
   const f = fixture(); try { const target = join(f.root, 'target'); mkdirSync(target); const link = join(f.root, 'link'); symlinkSync(target, link, 'junction');
     assert.throws(() => new Studio(join(f.root, 'other.sqlite'), join(link, 'exports')), /symlink|junction/i);

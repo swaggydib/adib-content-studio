@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path';
 
 export const STAGES = ['Idea', 'Draft', 'Script Review', 'Ready to Record', 'Editing', 'Final Review', 'Ready to Publish', 'On Hold', 'Dropped', 'Rejected'] as const;
@@ -79,6 +79,19 @@ export class Studio {
     const raw = object(input); keys(raw, ['action', 'version', 'note']); const version = expected(raw.version); const item = this.get(id);
     if (version !== item.version) throw new StudioError('Version conflict; reload content', 409);
     const action = text(raw.action, 'action', 40, true); const note = raw.note === undefined ? '' : text(raw.note, 'note', 5000); const from = item.stage;
+    if(action==='reject'){
+      this.db.exec('BEGIN IMMEDIATE');
+      try{
+        if(this.db.prepare('SELECT id FROM studio_publications WHERE item_id=?').get(id))throw new StudioError('Konten dengan rekam publikasi tidak boleh dihapus lewat Tolak ide',409);
+        const hasJobs=!!this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='studio_revision_jobs'").get();
+        if(hasJobs&&this.db.prepare("SELECT id FROM studio_revision_jobs WHERE json_extract(document,'$.itemId')=? AND json_extract(document,'$.status') IN ('queued','running')").get(id))throw new StudioError('Tunggu tugas Hermes selesai sebelum menghapus draft',409);
+        const row=this.db.prepare('SELECT external_id FROM studio_items WHERE id=? AND version=?').get(id,version) as {external_id:string|null}|undefined;
+        if(!row)throw new StudioError('Version conflict; reload content',409);
+        this.db.prepare('INSERT INTO studio_rejected_ids(item_id,external_id,idea_id,rejected_at) VALUES(?,?,?,?)').run(id,row.external_id,item.ideaId,new Date().toISOString());
+        if(hasJobs){if(this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='studio_revision_inputs'").get())this.db.prepare("DELETE FROM studio_revision_inputs WHERE id IN (SELECT id FROM studio_revision_jobs WHERE json_extract(document,'$.itemId')=?)").run(id);this.db.prepare("DELETE FROM studio_revision_jobs WHERE json_extract(document,'$.itemId')=?").run(id);}
+        this.db.prepare('DELETE FROM studio_items WHERE id=? AND version=?').run(id,version);this.db.exec('COMMIT');return {...item,stage:'Rejected',approvals:[]};
+      }catch(e){this.db.exec('ROLLBACK');throw e;}
+    }
     let to: Stage | undefined;
     if (action === 'submit' && ['Idea','Draft'].includes(from)) { if (!item.body.trim()) throw new StudioError('Isi naskah sebelum mengajukan review'); to = 'Script Review'; }
     if (action === 'approve' && from === 'Script Review') to = item.format === 'video' ? 'Ready to Record' : 'Ready to Publish';
@@ -105,14 +118,12 @@ export class Studio {
       for (const field of fields.filter(f => f !== 'ideaId')) if (!Object.hasOwn(raw, field)) throw new StudioError(`Missing intake field: ${field}`);
       return { externalId, content: validate(raw) }; });
     let imported = 0, skipped = 0; this.db.exec('BEGIN IMMEDIATE');
-    try { for (const entry of batch) { if (this.db.prepare('SELECT id FROM studio_items WHERE external_id=?').get(entry.externalId) || (entry.content.ideaId && this.list().some(i => i.ideaId === entry.content.ideaId && ['Rejected','Dropped'].includes(i.stage)))) skipped++; else { this.insert(entry.content, entry.externalId); imported++; } } this.db.exec('COMMIT'); }
+    try { for (const entry of batch) { if (this.db.prepare('SELECT id FROM studio_items WHERE external_id=?').get(entry.externalId) || this.db.prepare('SELECT item_id FROM studio_rejected_ids WHERE external_id=? OR idea_id=?').get(entry.externalId,entry.content.ideaId) || (entry.content.ideaId && this.list().some(i => i.ideaId === entry.content.ideaId && ['Rejected','Dropped'].includes(i.stage)))) skipped++; else { this.insert(entry.content, entry.externalId); imported++; } } this.db.exec('COMMIT'); }
     catch (error) { this.db.exec('ROLLBACK'); throw error; } return { imported, skipped };
   }
   exportItem(id: string): { path: string } {
-    const item = this.get(id); const root = safeRoot(this.exportRoot); mkdirSync(root, { recursive: true }); safeRoot(root);
-    const file = join(root, `${new Date().toISOString().slice(0, 10)}-studio-${randomUUID()}.md`);
-    const content = `# Content Studio — ${item.title.replace(/[\r\n]/g, ' ')}\n\nSnapshot only; SQLite remains source of truth. Stage approval is NOT permission to publish.\n\n- ID: ${item.id}\n- Platform: ${item.platform}\n- Stage: ${item.stage}\n- Version: ${item.version}\n- Owner: ${item.owner}\n- Planned locally (not scheduled): ${item.plannedAt || 'Not set'}\n\n## Content\n\n${item.body}\n\n## Source evidence\n\n${item.source}\n\n## Full audit snapshot\n\n${JSON.stringify(item, null, 2)}\n`;
-    writeFileSync(file, content, { flag: 'wx', encoding: 'utf8' }); return { path: file };
+    this.get(id);
+    throw new StudioError('Ekspor draft dinonaktifkan. Konfirmasi publikasi terlebih dahulu, lalu ekspor rekam publikasinya.',403);
   }
 }
 let singleton: Studio | undefined;
