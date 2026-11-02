@@ -1,31 +1,34 @@
 # Adib Content Studio
 
-A private, local-first workspace for turning ideas into reviewed, versioned drafts—with Adib in control of every approval.
+A local-first content workspace with version-bound approvals and human-reviewed AI revision proposals.
+
+It keeps draft versions, review decisions, and publication records in one place, so an approval for an older draft does not silently carry over to changed content.
 
 **Next.js · React · TypeScript · SQLite · Local Hermes integration**
 
 > Working local application, not a cloud deployment. SQLite remains the source of truth; Supabase is deferred. GitHub stores the source code, not the running web app or your content database. No social publishing is enabled.
 
-## Access the web app
+## Workflow and architecture
 
-### On Adib's current laptop
-
-Open **http://127.0.0.1:3002** while the local server is running.
-
-After restarting the laptop, or if the server has stopped:
-
-```sh
-cd D:/personal/projects/adib-content-studio
-npm run start -- --port 3002
+```text
+Browser UI (board, editor, calendar)
+                  |
+           Next.js server
+             /         \
+       SQLite       Hermes worker (optional)
+     source of      review / revision proposal
+       truth                 |
+                    explicit human Apply
+                             |
+                    new unapproved version
 ```
 
-Keep the terminal open. Stop a server you started there with **Ctrl+C**. If the port is already occupied and the dashboard opens normally, use the existing server instead of starting another one.
+- **Version-bound approval:** relevant content edits invalidate existing approvals. Stale updates are rejected using an expected-version check.
+- **Human-reviewed AI output:** Hermes returns structured feedback or a revision proposal. A completed job does not automatically change the draft.
+- **Publication snapshots:** after manually publishing, the owner records the post URL, time, and exact version. Obsidian export uses that frozen snapshot, not the latest editable draft.
+- **Local-first persistence:** SQLite holds the working data. GitHub distributes the source, not personal drafts or a hosted service.
 
-### From another device
-
-`127.0.0.1` refers to the device opening the address, not to your laptop. A phone or another computer cannot access this loopback-only app using that URL. No public hosting or GitHub Pages deployment is configured.
-
-**The app has no login/auth layer. Do not expose it through a public tunnel or network binding.** Remote access needs a separately authorized security/deployment setup. A private repository does not make an exposed server safe.
+Publication records are **owner-confirmed**, not independently verified through a social platform API. Worker limits are application-level boundaries, not an OS sandbox.
 
 ## Features
 
@@ -44,9 +47,9 @@ Keep the terminal open. Stop a server you started there with **Ctrl+C**. If the 
 
 ## Quick start
 
-Requires **Node.js 26** (verified with 26.7.0), npm, and Git. Chrome is used by the recorded Playwright browser suite. Hermes and an Obsidian vault are optional integrations.
+Requires **Node.js 26**, npm, and Git. The earlier local checkpoint used Node.js 26.7.0; this documentation revision does not constitute a fresh runtime verification. Chrome is used by the recorded Playwright browser suite. Hermes and an Obsidian vault are optional integrations.
 
-Authenticate your Git client with an account that can access this private repository:
+The source repository is public; cloning does not require repository access approval:
 
 ```sh
 git clone https://github.com/swaggydib/adib-content-studio.git
@@ -56,7 +59,13 @@ npm run build
 npm run start -- --port 3002
 ```
 
-Open **http://127.0.0.1:3002**. A fresh clone has no original drafts, approvals, database, credentials, or local test artifacts. Create content in the UI or import a validated JSON pack.
+Open **http://127.0.0.1:3002** while the server is running. Keep its terminal open; stop a server you started with **Ctrl+C**.
+
+**Local access only:** `127.0.0.1` refers to the device opening the address. There is no public deployment or login/auth layer. Do not expose this app through a public tunnel or network binding.
+
+**Before using integrations on another machine:** configure the trusted server paths below. Some defaults and helper scripts refer to the original Windows setup; a fresh clone is not a portable, preconfigured integration demo. Do not run import/export helpers against personal data just to try the UI.
+
+A fresh clone has no original drafts, approvals, database, credentials, or local test artifacts. Create content in the UI or import a validated JSON pack.
 
 For development:
 
@@ -116,7 +125,7 @@ Only after you manually post: approve/save the exact final version, click **Tand
 
 **Tolak & hapus draft** requires confirmation and permanently removes the active unpublished draft, versions/history and completed local task data. It blocks pending/running Hermes tasks and items with publication records. Small ID tombstones prevent re-import. This is not secure erasure: old backups, source inbox files and provider-side histories are not deleted; SQLite pages are reused and file size need not shrink immediately. Existing legacy rejected records and old vault notes are not automatically cleaned up.
 
-Latest verification and exact boundaries: [PUBLICATION-HANDOFF.md](PUBLICATION-HANDOFF.md). Previous UI evidence below is historical. There is no automatic GitHub push for this local update.
+Recorded verification and exact boundaries: [PUBLICATION-HANDOFF.md](PUBLICATION-HANDOFF.md). The UI evidence below is historical, not a fresh verification of the current checkout.
 
 ## Verification
 
