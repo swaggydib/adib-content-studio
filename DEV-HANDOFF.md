@@ -1,6 +1,10 @@
 # DEV-HANDOFF — Adib Content Studio
 
-## Current update: published-only Obsidian and reject/delete
+## Current update: reliability and QA isolation
+
+See [RELIABILITY-HANDOFF.md](docs/RELIABILITY-HANDOFF.md) for the 2026-11-03 pass: worker restart recovery, strict dates, guarded Playwright targets and Node version requirements. **39 backend tests and 9 Chrome tests passed**, as did full lint/typecheck and an isolated webpack production build. Original content was preserved. Production audit is clean; one development-tooling advisory remains. The live app build was not replaced. Runtime/process inventories and counts below are historical checkpoints.
+
+## Previous update: published-only Obsidian and reject/delete
 
 See PUBLICATION-HANDOFF.md. Manual owner-confirmed publication URL/time/version gates Obsidian export; draft export is disabled. Rejection now deletes unpublished draft data and completed worker payloads, preserving tiny dedup IDs. Existing notes and legacy data are not bulk-deleted. Prior UI/followup sections below are historical where superseded.
 

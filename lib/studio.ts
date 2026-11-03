@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path';
+import { isZonedDateTime } from './dates.ts';
 
 export const STAGES = ['Idea', 'Draft', 'Script Review', 'Ready to Record', 'Editing', 'Final Review', 'Ready to Publish', 'On Hold', 'Dropped', 'Rejected'] as const;
 export type Stage = typeof STAGES[number];
@@ -28,7 +29,7 @@ function validate(input: Record<string, unknown>, existing?: Content): Content {
   if (!['linkedin', 'instagram', 'tiktok'].includes(out.platform)) throw new StudioError('Invalid platform');
   if (!['text', 'video'].includes(out.format)) throw new StudioError('Invalid format');
   if (!['Adib', 'Hermes'].includes(out.owner)) throw new StudioError('Invalid owner');
-  if (out.plannedAt && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(out.plannedAt) || !Number.isFinite(Date.parse(out.plannedAt)))) throw new StudioError('Invalid plannedAt: include timezone');
+  if (out.plannedAt && !isZonedDateTime(out.plannedAt)) throw new StudioError('Invalid plannedAt: use a valid calendar date and time with timezone');
   return out;
 }
 function snapshot(item: Content): Content { return Object.fromEntries(fields.map(f => [f, item[f]])) as unknown as Content; }

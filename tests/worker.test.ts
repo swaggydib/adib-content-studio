@@ -4,9 +4,41 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
 import { Studio } from '../lib/studio.ts';
 import { RevisionWorker, captureProcess, hermesArgs, parseProposal, type ProcessRunner, type Job } from '../lib/worker.ts';
 const output = (body = 'Revisi singkat') => ({ exitCode: 0, stdout: JSON.stringify({ type: 'result', exit_code: 0, text: JSON.stringify({ body }) }) });
+test('restart before expiry recovers interrupted job and drains queue without another restart', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
+  const dir = mkdtempSync(join(tmpdir(), 'studio-recovery-'));
+  const dbPath = join(dir, 'studio.sqlite');
+  const studio = new Studio(dbPath, join(dir, 'exports'));
+  const item = studio.create({ title: 'Recovery', body: 'Original' });
+  const db = new DatabaseSync(dbPath);
+  db.exec('CREATE TABLE studio_revision_jobs(id TEXT PRIMARY KEY, document TEXT NOT NULL)');
+  const interrupted: Job = { id: 'interrupted', itemId: item.id, version: 1, status: 'running', createdAt: new Date().toISOString(), startedAt: new Date(Date.now() - 30000).toISOString() };
+  db.prepare('INSERT INTO studio_revision_jobs VALUES(?,?)').run(interrupted.id, JSON.stringify(interrupted));
+  db.close();
+  let calls = 0;
+  const worker = new RevisionWorker({ dbPath, studio, timeoutMs: 200, runner: async () => { calls++; return output(); } });
+  try {
+    const queued = worker.queueRevision(item.id, 1, 'Shorten');
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    assert.equal(worker.getJob(interrupted.id).status, 'running');
+    assert.equal(worker.getJob(queued.id).status, 'queued');
+    assert.equal(calls, 0);
+    t.mock.timers.tick(201);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(worker.getJob(interrupted.id).status, 'failed');
+    assert.match(worker.getJob(interrupted.id).error!, /interrupted/i);
+    assert.equal(worker.getJob(queued.id).status, 'done');
+    assert.equal(calls, 1);
+    assert.equal(studio.get(item.id).body, 'Original');
+  } finally {
+    worker.close(); studio.close(); t.mock.timers.reset();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 async function settled(worker: RevisionWorker, id: string): Promise<Job> { for (let i = 0; i < 200; i++) { const job = worker.getJob(id); if (['done', 'failed'].includes(job.status)) { await new Promise(r => setTimeout(r, 0)); return job; } await new Promise(r => setTimeout(r, 5)); } throw new Error('Test worker did not settle'); }
 function fixture(runner: ProcessRunner, queueCap = 4) { const dir = mkdtempSync(join(tmpdir(), 'studio-worker-test-')); const studio = new Studio(join(dir, 'studio.sqlite'), join(dir, 'exports')); const worker = new RevisionWorker({ dbPath: join(dir, 'jobs.sqlite'), studio, runner, queueCap }); const item = studio.create({ title: 'Test', body: 'Draf asli', platform: 'linkedin' }); return { studio, worker, item, dir, cleanup() { worker.close(); studio.close(); rmSync(dir, { recursive: true, force: true }); } }; }
 test('proposal remains separate; explicit application invalidates approvals and prevents reuse', async () => {

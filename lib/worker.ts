@@ -72,13 +72,12 @@ export class RevisionWorker {
   private closed = false;
   private limit: number;
   private timeoutMs: number;
+  private recoveryTimer?: ReturnType<typeof setTimeout>;
   constructor(options: { dbPath?: string; studio?: Studio; runner?: ProcessRunner; queueCap?: number; timeoutMs?: number } = {}) {
     const path = options.dbPath ?? process.env.STUDIO_DB ?? 'data/studio.sqlite';
     if (path !== ':memory:') mkdirSync(dirname(resolve(path)), { recursive: true });
     this.db = new DatabaseSync(path); this.db.exec('PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS studio_revision_jobs(id TEXT PRIMARY KEY, document TEXT NOT NULL);');
     this.studio = options.studio ?? getStudio(); this.runner = options.runner ?? runHermes; this.limit = options.queueCap ?? 4; this.timeoutMs = options.timeoutMs ?? TIMEOUT;
-    // A process interruption cannot silently leave an eternally running job. No automatic retry.
-    for (const job of this.listJobs()) if (job.status === 'running' && Date.now() - Date.parse(job.startedAt ?? job.createdAt) > this.timeoutMs + 30000) this.save({ ...job, status: 'failed', error: 'Worker interrupted; execution outcome unknown; not automatically retried', finishedAt: new Date().toISOString() });
     queueMicrotask(() => { void this.pump(); });
   }
   private save(job: Job) { this.db.prepare('INSERT OR REPLACE INTO studio_revision_jobs(id,document) VALUES(?,?)').run(job.id, JSON.stringify(job)); }
@@ -111,10 +110,31 @@ export class RevisionWorker {
   }
   private async pump() {
     if (this.pumping || this.closed) return; this.pumping = true;
+    clearTimeout(this.recoveryTimer);
     try {
       while (!this.closed) {
         this.db.exec('BEGIN IMMEDIATE'); let job: Job | undefined;
-        try { const all = this.listJobs(); if (!all.some(j => j.status === 'running')) job = all.filter(j => j.status === 'queued').reverse()[0]; if (job) { job.status = 'running'; job.startedAt = new Date().toISOString(); this.save(job); } this.db.exec('COMMIT'); } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+        try {
+          const all = this.listJobs();
+          for (const interrupted of all.filter(j => j.status === 'running')) {
+            const remaining = Date.parse(interrupted.startedAt ?? interrupted.createdAt) + this.timeoutMs + 30000 - Date.now();
+            if (remaining <= 0) {
+              interrupted.status = 'failed';
+              interrupted.error = 'Worker interrupted; execution outcome unknown; not automatically retried';
+              interrupted.finishedAt = new Date().toISOString();
+              this.save(interrupted);
+            }
+          }
+          const running = all.filter(j => j.status === 'running');
+          if (running.length) {
+            // Recheck persisted work at its deadline even when no new requests arrive.
+            const delay = Math.min(...running.map(j => Date.parse(j.startedAt ?? j.createdAt) + this.timeoutMs + 30000 - Date.now()));
+            this.recoveryTimer = setTimeout(() => { void this.pump(); }, Math.max(1, delay));
+            this.recoveryTimer.unref();
+          } else job = all.filter(j => j.status === 'queued').reverse()[0];
+          if (job) { job.status = 'running'; job.startedAt = new Date().toISOString(); this.save(job); }
+          this.db.exec('COMMIT');
+        } catch (e) { this.db.exec('ROLLBACK'); throw e; }
         if (!job) break;
         let folder: string | undefined;
         try {
@@ -137,7 +157,7 @@ export class RevisionWorker {
     const item = this.studio.update(job.itemId, { version: job.version, body: job.result.body, owner: 'Adib' });
     job.appliedAt = new Date().toISOString(); this.save(job); return item;
   }
-  close() { if (this.pumping) throw new Error('Cannot close running worker'); this.closed = true; this.db.close(); }
+  close() { if (this.pumping) throw new Error('Cannot close running worker'); this.closed = true; clearTimeout(this.recoveryTimer); this.db.close(); }
 }
 let singleton: RevisionWorker | undefined;
 export function getWorker(): RevisionWorker { return singleton ??= new RevisionWorker(); }

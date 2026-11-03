@@ -6,6 +6,30 @@ import { join } from 'node:path';
 import { Studio } from '../lib/studio.ts';
 
 const base = { title: 'A real draft', platform: 'linkedin', format: 'text', body: 'Draft body', source: 'Evidence supplied by author', owner: 'Adib', account: '', media: '', audience: '', plannedAt: '' };
+test('impossible planned dates cannot create, edit or import content', () => {
+  const studio = new Studio(':memory:', process.cwd());
+  try {
+    let item = studio.create(base);
+    for (const action of ['submit', 'approve']) item = studio.action(item.id, { action, version: item.version });
+    const before = JSON.stringify(studio.get(item.id));
+    for (const plannedAt of ['2026-02-30T10:00:00+08:00', '2025-02-29T10:00Z', '1900-02-29T10:00Z', '2026-04-31T10:00Z', '2026-01-01T24:00Z', '2026-01-01T10:60Z', '2026-01-01T10:00+08:60', '2026-01-01T10:00']) {
+      assert.throws(() => studio.create({ ...base, plannedAt }), /plannedAt/, plannedAt);
+      assert.throws(() => studio.update(item.id, { version: item.version, plannedAt }), /plannedAt/, plannedAt);
+      assert.throws(() => studio.importPack({ schemaVersion: 1, items: [{ ...base, externalId: 'valid-first' }, { ...base, plannedAt, externalId: 'invalid-second' }] }), /plannedAt/, plannedAt);
+      assert.equal(studio.list().length, 1);
+      assert.equal(JSON.stringify(studio.get(item.id)), before);
+    }
+  } finally { studio.close(); }
+});
+
+test('planned dates accept leap years, offsets, seconds and fractions without normalization', () => {
+  const studio = new Studio(':memory:', process.cwd());
+  try {
+    for (const plannedAt of ['', '2024-02-29T23:59+08:00', '2000-02-29T00:00Z', '2026-12-31T23:59:59.123-05:30', '2026-01-01T00:00:00Z']) {
+      assert.equal(studio.create({ ...base, plannedAt }).plannedAt, plannedAt);
+    }
+  } finally { studio.close(); }
+});
 function fixture() {
   const scratch = process.env.TMPDIR || 'C:/Users/LENOVO/AppData/Local/hermes/cache/scratch';
   mkdirSync(scratch, { recursive: true });

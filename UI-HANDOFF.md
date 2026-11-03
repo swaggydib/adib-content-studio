@@ -1,5 +1,7 @@
 # UI-HANDOFF — local workspace and complete appearance
 
+Latest verification: [reliability handoff](docs/RELIABILITY-HANDOFF.md), 2026-11-03. It supersedes the old test counts and worker-expiry limit below; this file retains the earlier UI checkpoint and safe QA launch instructions.
+
 ## Current delivery
 
 - Verified URL: http://127.0.0.1:3002 . This now serves the NEW UI build, not the stale acceptance server. Build ID: `Ld1PK9NNnnCH5VdlXhFcU`.
@@ -49,6 +51,7 @@ Use the existing running server first. Before rebuilding, stop only the owned ap
 
 ```sh
 STUDIO_DB=D:/personal/projects/adib-content-studio/artifacts/ui-qa/studio.sqlite \
+STUDIO_QA_TOKEN=replace-with-a-unique-run-token \
 STUDIO_INBOX_ROOT=D:/personal/projects/adib-content-studio/artifacts/ui-qa/inbox \
 STUDIO_EXPORT_ROOT=D:/personal/projects/adib-content-studio/artifacts/ui-qa/vault/exports \
 node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3012
@@ -57,7 +60,7 @@ node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3012
 In a separate terminal:
 
 ```sh
-STUDIO_TEST_URL=http://127.0.0.1:3012 STUDIO_REPORT_PATH=artifacts/ui-browser-results.json npx playwright test e2e/ui.spec.ts
+STUDIO_TEST_URL=http://127.0.0.1:3012 STUDIO_QA_TOKEN=replace-with-a-unique-run-token STUDIO_REPORT_PATH=artifacts/ui-browser-results.json npx playwright test e2e/ui.spec.ts
 npm test
 npm run lint
 npm run typecheck
@@ -65,6 +68,8 @@ python scripts/ui-preservation.py
 ```
 
 No initial-import reset is required for an existing working DB. The preparation script copies SQLite using its backup API and is only for isolated QA.
+
+Browser tests now require an explicit loopback URL and the same unique 16–128 character URL-safe `STUDIO_QA_TOKEN` on both server and runner. Global setup calls only `/api/studio/qa-check` before tests: the server refuses unless its database is in a dedicated `artifacts/` subdirectory and its explicit inbox/export roots are inside that same directory, without symlink/junction ancestors. Normal servers leave the token unset and reject this check. Restart a QA server with the updated code before testing; an older build cannot pass the check.
 
 ## Boundaries / remaining work
 

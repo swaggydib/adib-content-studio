@@ -49,6 +49,8 @@ Publication records are **owner-confirmed**, not independently verified through 
 
 Requires **Node.js 26**, npm, and Git. The earlier local checkpoint used Node.js 26.7.0; this documentation revision does not constitute a fresh runtime verification. Chrome is used by the recorded Playwright browser suite. Hermes and an Obsidian vault are optional integrations.
 
+The project pins **26.7.0** in `.nvmrc` and accepts Node **>=26.7.0 <27**. With nvm, run `nvm install 26.7.0` then `nvm use 26.7.0`; confirm `node --version` before installing or running commands. `.npmrc` enables strict engine checks, so `npm ci`/`npm install` reject unsupported Node versions. Existing dependencies do not switch your shell runtime automatically.
+
 The source repository is public; cloning does not require repository access approval:
 
 ```sh
@@ -101,7 +103,8 @@ Provider badges reflect the last task outcome, not continuous monitoring. Launch
 | `STUDIO_INBOX_ROOT` | Trusted inbox; current-machine default `D:/Hermes/profiles/social-manager/workspace/studio-inbox` |
 | `STUDIO_EXPORT_ROOT` | Trusted export root; current-machine default `D:/personal/obsidian/second_brain/02-Projects/social-media-manager/content-studio` |
 | `STUDIO_HERMES_EXE` | Optional trusted native launcher path; otherwise discovered from PATH |
-| `STUDIO_TEST_URL` | Browser-test target; defaults to `http://127.0.0.1:3002` |
+| `STUDIO_TEST_URL` | Required explicit loopback URL for browser tests; no default |
+| `STUDIO_QA_TOKEN` | Required matching run token on QA server and Playwright runner; leave unset on the normal app |
 | `STUDIO_REPORT_PATH` | Browser-test JSON report destination |
 
 These are server-side settings, never browser-supplied paths. Some adapters/helper scripts remain specific to the original Windows setup; review/configure their paths on another machine. Inspect **Koneksi & akses** for integration status/errors.
@@ -129,6 +132,8 @@ Recorded verification and exact boundaries: [PUBLICATION-HANDOFF.md](PUBLICATION
 
 ## Verification
 
+Latest reliability verification (2026-11-03): **39 backend tests and 9 Chrome UI/publication tests passed**, full lint/typecheck and isolated production build passed. See [reliability handoff](docs/RELIABILITY-HANDOFF.md) for local evidence and the remaining development-dependency advisory.
+
 Recorded local checkpoint—not GitHub CI or a full security/accessibility audit:
 
 | Check | Result |
@@ -150,8 +155,10 @@ npm audit
 
 **Browser QA must use an isolated database, inbox, and export root.** See [UI-HANDOFF.md](UI-HANDOFF.md) for preparation/server commands. Against that isolated server, in Git Bash:
 
+Playwright refuses missing QA settings and verifies the server before running any tests. Set the same unique run token on both server and runner; the server must use explicit storage roots under one dedicated `artifacts/` subdirectory. The normal app leaves the QA token unset. Historical standalone browser diagnostic scripts do not use this Playwright guard.
+
 ```sh
-STUDIO_TEST_URL=http://127.0.0.1:3012 STUDIO_REPORT_PATH=artifacts/ui-browser-results.json npx playwright test e2e/ui.spec.ts
+STUDIO_TEST_URL=http://127.0.0.1:3012 STUDIO_QA_TOKEN=replace-with-a-unique-run-token STUDIO_REPORT_PATH=artifacts/ui-browser-results.json npx playwright test e2e/ui.spec.ts
 ```
 
 The current UI suite covers theme persistence, OS/cross-tab changes, malformed/blocked storage, sorting, focus, dirty navigation, approval invalidation/reject/reopen, and mobile overflow. Older v1 browser tests contain outdated labels; not every historical browser suite is current. Live-model testing is separate and can use your provider allowance.
@@ -179,7 +186,7 @@ FOLLOWUP-HANDOFF.md     Earlier workflow/integration evidence
 
 - Not a general-purpose Notion replacement: no arbitrary block editor, custom database builder, multi-user auth, or collaboration.
 - No Supabase migration, cloud hosting, social publishing, private platform analytics, or real platform scheduling.
-- Interrupted-job expiry is checked on worker initialization; an unexpired interrupted job may need another restart after its deadline.
+- Interrupted jobs are marked failed after their timeout plus a 30-second grace period; the worker rechecks automatically and continues queued work without retrying the interrupted task.
 - Inbox scans consider the first 100 sorted JSON files; large retained inboxes need paging/archiving work.
 - Snapshot sync is explicit. A crash between file write and ledger insert may leave another new snapshot, never an overwritten note.
 - Hermes jobs require provider/network availability and local authentication. This laptop is not an always-on worker host.
